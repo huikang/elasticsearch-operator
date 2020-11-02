@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	esapi "github.com/openshift/elasticsearch-operator/internal/apis/logging/v1"
+	esapi "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 )
 
 type statusTestContext struct {
