@@ -1,23 +1,35 @@
+/*
+
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"runtime"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
-	"k8s.io/client-go/rest"
-
-	"github.com/ViaQ/logerr/log"
-	"github.com/openshift/elasticsearch-operator/internal/apis"
-	"github.com/openshift/elasticsearch-operator/internal/controller"
-	"github.com/openshift/elasticsearch-operator/version"
-
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	ctrl "sigs.k8s.io/controller-runtime"
+	// "sigs.k8s.io/controller-runtime/pkg/log/zap"
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	configv1 "github.com/openshift/api/config/v1"
 	consolev1 "github.com/openshift/api/console/v1"
@@ -25,22 +37,49 @@ import (
 	routev1 "github.com/openshift/api/route/v1"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
-	"github.com/operator-framework/operator-sdk/pkg/leader"
 	"github.com/operator-framework/operator-sdk/pkg/metrics"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+
+	"github.com/ViaQ/logerr/log"
+	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
+	"github.com/openshift/elasticsearch-operator/controllers/logging"
+	"github.com/openshift/elasticsearch-operator/version"
+	// +kubebuilder:scaffold:imports
 )
 
-// Change below variables to serve metrics on different host or port.
 var (
+	scheme   = apiruntime.NewScheme()
+	setupLog = ctrl.Log.WithName("setup")
+
 	metricsHost               = "0.0.0.0"
 	metricsPort         int32 = 8383
 	operatorMetricsPort int32 = 8686
 )
 
+func init() {
+	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+
+	utilruntime.Must(loggingv1.AddToScheme(scheme))
+
+	utilruntime.Must(routev1.AddToScheme(scheme))
+	utilruntime.Must(consolev1.AddToScheme(scheme))
+	utilruntime.Must(oauth.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
+	utilruntime.Must(configv1.AddToScheme(scheme))
+	// +kubebuilder:scaffold:scheme
+}
+
 func main() {
+	var enableLeaderElection bool
+	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
+		"Enable leader election for controller manager. "+
+			"Enabling this will ensure there is only one active controller manager.")
+	flag.Parse()
+
 	log.MustInit("elasticsearch-operator")
 	log.Info("starting up...",
 		"operator_version", version.Version,
@@ -67,69 +106,44 @@ func main() {
 
 	ctx := context.TODO()
 
-	// Become the leader before proceeding
-	err = leader.Become(ctx, "elasticsearch-operator-lock")
-	if err != nil {
-		ll.Error(err, "failed to become leader")
-		os.Exit(1)
-	}
-
-	// Create a new Cmd to provide shared dependencies and start components
-	mgr, err := manager.New(cfg, manager.Options{
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:             scheme,
 		Namespace:          namespace,
 		MetricsBindAddress: fmt.Sprintf("%s:%d", metricsHost, metricsPort),
+		Port:               9443,
+		LeaderElection:     enableLeaderElection,
+		LeaderElectionID:   "d471c3b1.openshift.io",
 	})
 	if err != nil {
-		ll.Error(err, "failed to create a new manager")
+		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	ll.Info("Registering Components.")
-
-	// Setup Scheme for all resources
-	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
-		ll.Error(err, "failed to add resources to scheme", "resource", "loggingv1")
+	if err = (&controllers.ElasticsearchReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("Elasticsearch"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Elasticsearch")
 		os.Exit(1)
 	}
-
-	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
-		ll.Error(err, "failed to add resources to scheme", "resource", "routev1")
+	if err = (&controllers.KibanaReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("Kibana"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Kibana")
 		os.Exit(1)
 	}
-
-	if err := consolev1.AddToScheme(mgr.GetScheme()); err != nil {
-		ll.Error(err, "failed to add resources to scheme", "resource", "consolev1")
-		os.Exit(1)
-	}
-
-	if err := oauth.AddToScheme(mgr.GetScheme()); err != nil {
-		ll.Error(err, "failed to add resources to scheme", "resource", "oauth")
-		os.Exit(1)
-	}
-
-	if err := monitoringv1.AddToScheme(mgr.GetScheme()); err != nil {
-		ll.Error(err, "failed to add resources to scheme", "resource", "monitoringv1")
-		os.Exit(1)
-	}
-
-	if err := configv1.AddToScheme(mgr.GetScheme()); err != nil {
-		ll.Error(err, "failed to add resources to scheme", "resource", "configv1")
-		os.Exit(1)
-	}
-
-	// Setup all Controllers
-	if err := controller.AddToManager(mgr); err != nil {
-		ll.Error(err, "failed to add controller to manager")
-		os.Exit(1)
-	}
+	// +kubebuilder:scaffold:builder
 
 	// Add the Metrics Service
 	addMetrics(ctx, cfg)
 
 	ll.Info("This operator no longer honors the image specified by the custom resources so that it is able to properly coordinate the configuration with the image.")
-	ll.Info("Starting the Cmd.")
-	// Start the Cmd
-	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
+	ll.Info("Starting the manager.")
+
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		ll.Error(err, "Manager exited non-zero")
 		os.Exit(1)
 	}
@@ -185,7 +199,7 @@ func serveCRMetrics(cfg *rest.Config, operatorNs string) error {
 	// The function below returns a list of filtered operator/CR specific GVKs. For more control, override the GVK list below
 	// with your own custom logic. Note that if you are adding third party API schemas, probably you will need to
 	// customize this implementation to avoid permissions issues.
-	filteredGVK, err := k8sutil.GetGVKsFromAddToScheme(apis.AddToScheme)
+	filteredGVK, err := k8sutil.GetGVKsFromAddToScheme(loggingv1.AddToScheme)
 	if err != nil {
 		return err
 	}
