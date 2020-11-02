@@ -11,7 +11,7 @@ import (
 	"github.com/ViaQ/logerr/kverrors"
 	consolev1 "github.com/openshift/api/console/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	loggingv1 "github.com/openshift/elasticsearch-operator/pkg/apis/logging/v1"
+	loggingv1 "github.com/openshift/elasticsearch-operator/internal/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/test/utils"
 
 	"github.com/operator-framework/operator-sdk/pkg/test"
