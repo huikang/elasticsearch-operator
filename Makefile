@@ -33,7 +33,7 @@ gobindir:
 
 GEN_TIMESTAMP=.zz_generate_timestamp
 generate: $(GEN_TIMESTAMP) $(OPERATOR_SDK)
-$(GEN_TIMESTAMP): $(shell find pkg/apis -name '*.go')
+$(GEN_TIMESTAMP): $(shell find internal/apis -name '*.go')
 	@./hack/generate-crd.sh
 	@$(MAKE) fmt
 	@touch $@
@@ -50,7 +50,7 @@ clean:
 	go clean -cache -testcache ./...
 
 fmt: $(GOFUMPORTS)
-	@$(GOFUMPORTS) -l -w $(shell find pkg cmd test -name '*.go')
+	@$(GOFUMPORTS) -l -w $(shell find internal cmd test -name '*.go')
 
 lint: $(GOLANGCI_LINT) fmt lint-prom
 	@$(GOLANGCI_LINT) run -c golangci.yaml

@@ -14,8 +14,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/ViaQ/logerr/log"
-	"github.com/openshift/elasticsearch-operator/pkg/apis"
-	"github.com/openshift/elasticsearch-operator/pkg/controller"
+	"github.com/openshift/elasticsearch-operator/internal/apis"
+	"github.com/openshift/elasticsearch-operator/internal/controller"
 	"github.com/openshift/elasticsearch-operator/version"
 
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
