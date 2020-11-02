@@ -1,4 +1,20 @@
-package kibana
+/*
+
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controllers
 
 import (
 	"context"
@@ -7,41 +23,32 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ViaQ/logerr/log"
+	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
-	loggingv1 "github.com/openshift/elasticsearch-operator/internal/apis/logging/v1"
-	"github.com/openshift/elasticsearch-operator/internal/constants"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
-	"github.com/ViaQ/logerr/log"
+	loggingv1 "github.com/openshift/elasticsearch-operator/apis/logging/v1"
+	"github.com/openshift/elasticsearch-operator/internal/constants"
+
 	"github.com/openshift/elasticsearch-operator/internal/elasticsearch"
 	"github.com/openshift/elasticsearch-operator/internal/k8shandler"
 	"github.com/openshift/elasticsearch-operator/internal/k8shandler/kibana"
 	"github.com/openshift/elasticsearch-operator/internal/utils"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/predicate"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
-
-// Add creates a new Kibana Controller and adds it to the Manager. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
-}
-
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileKibana{client: mgr.GetClient(), scheme: mgr.GetScheme()}
-}
 
 // map handlers to be used for all non-kibana CR events
 var globalMapHandler = handler.EnqueueRequestsFromMapFunc{
@@ -52,87 +59,6 @@ var namespacedMapHandler = handler.EnqueueRequestsFromMapFunc{
 	ToRequests: handler.ToRequestsFunc(getNamespacedKibanaEvent),
 }
 
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New("kibana-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource Kibana
-	err = c.Watch(&source.Kind{Type: &loggingv1.Kibana{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	// Watch for updates to the kibana secret
-	secretPred := predicate.Funcs{
-		UpdateFunc:  func(e event.UpdateEvent) bool { return handleSecret(e.MetaNew) },
-		CreateFunc:  func(e event.CreateEvent) bool { return false },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-		GenericFunc: func(e event.GenericEvent) bool { return false },
-	}
-
-	if err = c.Watch(&source.Kind{Type: &corev1.Secret{}}, &namespacedMapHandler, secretPred); err != nil {
-		return err
-	}
-
-	// Watch for updates to the global proxy config only
-	proxyPred := predicate.Funcs{
-		UpdateFunc:  func(e event.UpdateEvent) bool { return true },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-		CreateFunc:  func(e event.CreateEvent) bool { return true },
-		GenericFunc: func(e event.GenericEvent) bool { return false },
-	}
-
-	// Watch for changes to the proxy resource.
-	if err = c.Watch(&source.Kind{Type: &configv1.Proxy{}}, &globalMapHandler, proxyPred); err != nil {
-		return err
-	}
-
-	// Watch for changes to the additional trust bundle configmap
-	trustedBundlePred := predicate.Funcs{
-		UpdateFunc:  func(e event.UpdateEvent) bool { return handleConfigMap(e.MetaNew) },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-		CreateFunc:  func(e event.CreateEvent) bool { return handleConfigMap(e.Meta) },
-		GenericFunc: func(e event.GenericEvent) bool { return false },
-	}
-	if err = c.Watch(&source.Kind{Type: &corev1.ConfigMap{}}, &namespacedMapHandler, trustedBundlePred); err != nil {
-		return err
-	}
-
-	// Watch for changes to the kibana pod
-	podPred := predicate.Funcs{
-		UpdateFunc:  func(e event.UpdateEvent) bool { return handlePod(e.MetaNew) },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
-		CreateFunc:  func(e event.CreateEvent) bool { return false },
-		GenericFunc: func(e event.GenericEvent) bool { return false },
-	}
-	if err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &namespacedMapHandler, podPred); err != nil {
-		return err
-	}
-
-	// Watch for updates to the route
-	routePred := predicate.Funcs{
-		UpdateFunc:  func(e event.UpdateEvent) bool { return true },
-		DeleteFunc:  func(e event.DeleteEvent) bool { return true },
-		CreateFunc:  func(e event.CreateEvent) bool { return false },
-		GenericFunc: func(e event.GenericEvent) bool { return false },
-	}
-	if err = c.Watch(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestForOwner{
-		OwnerType:    &loggingv1.Kibana{},
-		IsController: true,
-	}, routePred); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// blank assignment to verify that ReconcileKibana implements reconcile.Reconciler
-var _ reconcile.Reconciler = &ReconcileKibana{}
-
 type RegisteredNamespacedNames struct {
 	registered []types.NamespacedName
 	mux        sync.Mutex
@@ -140,16 +66,14 @@ type RegisteredNamespacedNames struct {
 
 var registeredKibanas RegisteredNamespacedNames
 
-// ReconcileKibana reconciles a Kibana object
-type ReconcileKibana struct {
-	// This client, initialized using mgr.Client() above, is a split client
-	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+// KibanaReconciler reconciles a Kibana object
+type KibanaReconciler struct {
+	client.Client
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 }
 
-// Reconcile reads that state of the cluster for a Kibana object and makes changes based on the state read
-func (r *ReconcileKibana) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *KibanaReconciler) Reconcile(request ctrl.Request) (ctrl.Result, error) {
 	// get CR
 	kibanaInstance := &loggingv1.Kibana{}
 	key := types.NamespacedName{
@@ -157,7 +81,7 @@ func (r *ReconcileKibana) Reconcile(request reconcile.Request) (reconcile.Result
 		Namespace: request.Namespace,
 	}
 
-	err := r.client.Get(context.TODO(), key, kibanaInstance)
+	err := r.Get(context.TODO(), key, kibanaInstance)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// the CR no longer exists, since it will be cleaned up by the scheduler we don't want to trigger an event for it
@@ -175,19 +99,19 @@ func (r *ReconcileKibana) Reconcile(request reconcile.Request) (reconcile.Result
 	// keep track of the fact that we processed this kibana for future events and for mapping
 	registerKibanaNamespacedName(request)
 
-	es, err := k8shandler.GetElasticsearchCR(r.client, request.Namespace)
+	es, err := k8shandler.GetElasticsearchCR(r.Client, request.Namespace)
 	if err != nil {
 		log.Info("skipping kibana reconciliation", "namespace", request.Namespace, "error", err)
 		return reconcile.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
-	esClient := elasticsearch.NewClient(es.Name, es.Namespace, r.client)
-	proxyCfg, err := kibana.GetProxyConfig(r.client)
+	esClient := elasticsearch.NewClient(es.Name, es.Namespace, r.Client)
+	proxyCfg, err := kibana.GetProxyConfig(r.Client)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	if err := kibana.Reconcile(kibanaInstance, r.client, esClient, proxyCfg); err != nil {
+	if err := kibana.Reconcile(kibanaInstance, r.Client, esClient, proxyCfg); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -323,4 +247,59 @@ func getNamespacedKibanaEvent(a handler.MapObject) []reconcile.Request {
 	}
 
 	return requests
+}
+
+func (r *KibanaReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// Watch for updates to the kibana secret
+	secretPred := predicate.Funcs{
+		UpdateFunc:  func(e event.UpdateEvent) bool { return handleSecret(e.MetaNew) },
+		CreateFunc:  func(e event.CreateEvent) bool { return false },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
+	// Watch for updates to the global proxy config only
+	proxyPred := predicate.Funcs{
+		UpdateFunc:  func(e event.UpdateEvent) bool { return true },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+		CreateFunc:  func(e event.CreateEvent) bool { return true },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
+	// Watch for changes to the additional trust bundle configmap
+	trustedBundlePred := predicate.Funcs{
+		UpdateFunc:  func(e event.UpdateEvent) bool { return handleConfigMap(e.MetaNew) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+		CreateFunc:  func(e event.CreateEvent) bool { return handleConfigMap(e.Meta) },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
+	// Watch for changes to the kibana pod
+	podPred := predicate.Funcs{
+		UpdateFunc:  func(e event.UpdateEvent) bool { return handlePod(e.MetaNew) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return false },
+		CreateFunc:  func(e event.CreateEvent) bool { return false },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
+	// Watch for updates to the route
+	routePred := predicate.Funcs{
+		UpdateFunc:  func(e event.UpdateEvent) bool { return true },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return true },
+		CreateFunc:  func(e event.CreateEvent) bool { return false },
+		GenericFunc: func(e event.GenericEvent) bool { return false },
+	}
+
+	// TODO: replace the watches with For and Own
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&loggingv1.Kibana{}).
+		Watches(&source.Kind{Type: &corev1.Secret{}}, &namespacedMapHandler, builder.WithPredicates(secretPred)).
+		Watches(&source.Kind{Type: &configv1.Proxy{}}, &globalMapHandler, builder.WithPredicates(proxyPred)).
+		Watches(&source.Kind{Type: &corev1.ConfigMap{}}, &namespacedMapHandler, builder.WithPredicates(trustedBundlePred)).
+		Watches(&source.Kind{Type: &corev1.Pod{}}, &namespacedMapHandler, builder.WithPredicates(podPred)).
+		Watches(&source.Kind{Type: &routev1.Route{}}, &handler.EnqueueRequestForOwner{
+			OwnerType:    &loggingv1.Kibana{},
+			IsController: true,
+		}, builder.WithPredicates(routePred)).
+		Complete(r)
 }

@@ -12,7 +12,7 @@ const (
 	SecretName         string = "elasticsearch"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 // +k8s:openapi-gen=true
 // +kubebuilder:resource:categories=logging;tracing,shortName=es
 // +kubebuilder:subresource:status
@@ -37,7 +37,7 @@ type Elasticsearch struct {
 func (es *Elasticsearch) AddOwnerRefTo(o metav1.Object) {
 	trueVar := true
 	ref := metav1.OwnerReference{
-		APIVersion: SchemeGroupVersion.String(),
+		APIVersion: GroupVersion.String(),
 		Kind:       "Elasticsearch",
 		Name:       es.Name,
 		UID:        es.UID,
@@ -48,7 +48,7 @@ func (es *Elasticsearch) AddOwnerRefTo(o metav1.Object) {
 	}
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 //
 // ElasticsearchList contains a list of Elasticsearch
 type ElasticsearchList struct {

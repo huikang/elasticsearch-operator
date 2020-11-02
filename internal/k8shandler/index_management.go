@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/ViaQ/logerr/log"
-	logging "github.com/openshift/elasticsearch-operator/internal/apis/logging/v1"
+	logging "github.com/openshift/elasticsearch-operator/apis/logging/v1"
 	"github.com/openshift/elasticsearch-operator/internal/indexmanagement"
 	esapi "github.com/openshift/elasticsearch-operator/internal/types/elasticsearch"
 )

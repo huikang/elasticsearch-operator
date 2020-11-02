@@ -57,7 +57,7 @@ type KibanaStatus struct {
 	Conditions map[string]ClusterConditions `json:"clusterCondition,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // Kibana is the Schema for the kibanas API
 // +k8s:openapi-gen=true
@@ -73,7 +73,7 @@ type Kibana struct {
 	Status []KibanaStatus `json:"status,omitempty"`
 }
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // KibanaList contains a list of Kibana
 type KibanaList struct {
