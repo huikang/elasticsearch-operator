@@ -17,10 +17,11 @@ echo "--------------------------------------------------------------"
 # $OPERATOR_SDK generate crds --crd-version v1
 # mv deploy/crds/*.yaml "${MANIFESTS_DIR}"
 # CRD_OPTIONS?="crd:crdVersions=v1"
-$CONTROLLER_GEN crd:crdVersions=v1 rbac:roleName=elasticsearch-operator paths="./apis/..." output:crd:artifacts:config=config/crd/bases
+$CONTROLLER_GEN crd:crdVersions=v1 rbac:roleName=elasticsearch-operator paths="./..." output:crd:artifacts:config=config/crd/bases
 # TODO: copy generated CRD, RBAC to MANIFESTS_DIR
 #$OPERATOR_SDK generate crds --crd-version v1
 #mv deploy/crds/*.yaml "${MANIFESTS_DIR}"
+cp config/crd/bases/*.yaml "${MANIFESTS_DIR}"
 
 echo "---------------------------------------------------------------"
 echo "Cleanup operator-sdk generation folder"
