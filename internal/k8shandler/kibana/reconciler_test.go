@@ -6,11 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	kibana "github.com/openshift/elasticsearch-operator/pkg/apis/logging/v1"
+	kibana "github.com/openshift/elasticsearch-operator/internal/apis/logging/v1"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/elasticsearch-operator/pkg/constants"
-	"github.com/openshift/elasticsearch-operator/pkg/utils"
+	"github.com/openshift/elasticsearch-operator/internal/constants"
+	"github.com/openshift/elasticsearch-operator/internal/utils"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
