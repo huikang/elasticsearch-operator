@@ -70,7 +70,7 @@ type Kibana struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   KibanaSpec     `json:"spec,omitempty"`
-	Status []KibanaStatus `json:"status,omitempty"`
+	Status []KibanaStatus `json:"statuss,omitempty"`
 }
 
 // +kubebuilder:object:root=true

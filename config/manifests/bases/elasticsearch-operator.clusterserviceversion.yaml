@@ -1,0 +1,182 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "logging.openshift.io/v1",
+          "kind": "Elasticsearch",
+          "metadata": {
+            "name": "elasticsearch"
+          },
+          "spec": {
+            "managementState": "Managed"
+            "nodeSpec": {
+              "resources": {
+                "limits": {
+                  "memory": "1Gi"
+                },
+                "requests": {
+                  "cpu": "100m"
+                  "memory": "1Gi"
+                }
+              }
+            },
+            "nodes": [
+              {
+                "nodeCount": 1,
+                "roles": ["client", "data", "master"],
+                "storage": {
+                  "size": "20G"
+                }
+              }
+            ],
+            "redundancyPolicy": "ZeroRedundancy",
+            "indexManagement": {
+              "policies": [
+                {
+                  "name": "infra-policy",
+                  "pollInterval": "30m",
+                  "phases": {
+                    "hot": {
+                      "actions": {
+                        "rollover": {
+                          "maxAge": "8h"
+                        }
+                      }
+                    },
+                    "delete": {
+                      "minAge": "2d"
+                    }
+                  }
+                }
+              ],
+              "mappings": [
+                {
+                  "name": "infra",
+                  "policyRef": "infra-policy",
+                  "aliases": ["infra", "logs.infra"]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "apiVersion": "logging.openshift.io/v1",
+          "kind": "Kibana",
+          "metadata": {
+            "name": "kibana"
+          },
+          "spec": {
+            "managementState": "Managed",
+            "replicas": 1,
+            "nodeSelector": {},
+            "resources": {
+              "limits": {
+                "memory": "512Mi"
+              },
+              "requests": {
+                "memory": "512Mi"
+              }
+            }
+          }
+        }
+      ]
+    capabilities: Seamless Upgrades
+    categories: OpenShift Optional, Logging & Tracing
+    certified: "false"
+    containerImage: quay.io/openshift/origin-elasticsearch-operator:latest
+    createdAt: "2020-11-04T08:00:00Z"
+    description: |
+      The Elasticsearch Operator for OCP provides a means for configuring and managing an Elasticsearch cluster for tracing and cluster logging.
+      ## Prerequisites and Requirements
+      ### Elasticsearch Operator Namespace
+      The Elasticsearch Operator must be deployed to the global operator group namespace
+      ### Memory Considerations
+      Elasticsearch is a memory intensive application.  The initial
+      set of OCP nodes may not be large enough to support the Elasticsearch cluster.  Additional OCP nodes must be added
+      to the OCP cluster if you desire to run with the recommended (or better) memory. Each ES node can operate with a
+      lower memory setting though this is not recommended for production deployments.
+    olm.skipRange: '>=4.5.0-0 <4.7.0'
+    operatorframework.io/cluster-monitoring: "true"
+    operatorframework.io/suggested-namespace: openshift-operators-redhat
+    operators.operatorframework.io/builder: operator-sdk-unknown
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v2
+    support: AOS Cluster Logging, Jaeger
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/arch.ppc64le: supported
+    operatorframework.io/arch.s390x: supported
+  name: elasticsearch-operator.vX.Y.Z
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: An Elasticsearch cluster instance
+      displayName: Elasticsearch
+      kind: Elasticsearch
+      name: elasticsearches.logging.openshift.io
+      resources:
+      - kind: ConfigMap
+        name: ""
+        version: v1
+      - kind: Deployment
+        name: ""
+        version: v1
+      - kind: Pod
+        name: ""
+        version: v1
+      - kind: ReplicaSet
+        name: ""
+        version: v1
+      - kind: Route
+        name: ""
+        version: v1
+      - kind: Service
+        name: ""
+        version: v1
+      - kind: StatefulSet
+        name: ""
+        version: v1
+      statusDescriptors:
+      - description: The current Status of the Elasticsearch Cluster
+        displayName: Status
+        path: cluster.status
+      version: v1
+    - description: Kibana is the Schema for the kibanas API
+      kind: Kibana
+      name: kibanas.logging.openshift.io
+      version: v1
+  description: Elasticsearch Operator description. TODO.
+  displayName: Elasticsearch Operator
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      deployments: null
+    strategy: ""
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - elasticsearch
+  - jaeger
+  links:
+  - name: Elastic
+    url: https://www.elastic.co/
+  maintainers:
+  - email: aos-logging@redhat.com
+    name: Red Hat, AOS Logging
+  maturity: alpha
+  provider:
+    name: Red Hat
+  version: 0.0.0

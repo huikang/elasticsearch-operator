@@ -43,7 +43,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: Elasticsearch is the Schema for the elasticsearches API
+        description: An Elasticsearch cluster instance
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -440,6 +440,7 @@ spec:
                     format: int32
                     type: integer
                   status:
+                    description: The current Status of the Elasticsearch Cluster
                     type: string
                   unassignedShards:
                     format: int32

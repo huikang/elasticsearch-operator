@@ -23,7 +23,15 @@ const (
 // +kubebuilder:printcolumn:name="Shard Allocation",JSONPath=".status.shardAllocationEnabled",type=string
 // +kubebuilder:printcolumn:name="Index Management",JSONPath=".status.indexManagement.State",type=string
 //
-// Elasticsearch is the Schema for the elasticsearches API
+// An Elasticsearch cluster instance
+// +operator-sdk:gen-csv:customresourcedefinitions.displayName="Elasticsearch"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="Deployment,v1"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="StatefulSet,v1"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="ReplicaSet,v1"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="Pod,v1"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="ConfigMap,v1"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="Service,v1"
+// +operator-sdk:gen-csv:customresourcedefinitions.resources="Route,v1"
 type Elasticsearch struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -108,6 +116,10 @@ type ElasticsearchStatus struct {
 }
 
 type ClusterHealth struct {
+	// The current Status of the Elasticsearch Cluster
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors=true
+	// +operator-sdk:gen-csv:customresourcedefinitions.statusDescriptors=true
+	// +operator-sdk:gen-csv:customresourcedefinitions.specDescriptors.x-descriptors="urn:alm:descriptor:io.kubernetes.phase"
 	Status              string `json:"status"`
 	NumNodes            int32  `json:"numNodes"`
 	NumDataNodes        int32  `json:"numDataNodes"`

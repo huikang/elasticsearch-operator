@@ -134,6 +134,23 @@ generate-bundle: regenerate $(OPM)
 	$(OPERATOR_SDK) bundle validate --verbose bundle
 .PHONY: generate-bundle
 
+# Generate bundle manifests and metadata, then validate generated files.
+VERSION ?= 4.7.0
+# Options for 'bundle-build'
+ifneq ($(origin CHANNELS), undefined)
+BUNDLE_CHANNELS := --channels=$(CHANNELS)
+endif
+ifneq ($(origin DEFAULT_CHANNEL), undefined)
+BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
+endif
+BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
+
+bundle:
+	$(OPERATOR_SDK) generate kustomize manifests -q
+	kustomize build config/manifests | operator-sdk generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	$(OPERATOR_SDK) bundle validate ./bundle
+.PHONY: bundle
+
 # to use these targets, ensure the following env vars are set:
 # either each IMAGE env var:
 # IMAGE_ELASTICSEARCH_OPERATOR_REGISTRY

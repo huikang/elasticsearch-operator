@@ -161,7 +161,7 @@ spec:
             required:
             - managementState
             type: object
-          status:
+          statuss:
             items:
               description: KibanaStatus defines the observed state of Kibana
               properties:
