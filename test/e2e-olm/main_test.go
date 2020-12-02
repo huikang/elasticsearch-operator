@@ -1,11 +1,18 @@
 package e2e
 
 import (
-	"testing"
+	// "testing"
+	// "github.com/operator-framework/operator-sdk/pkg/test"
 
-	"github.com/operator-framework/operator-sdk/pkg/test"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func TestMain(m *testing.M) {
-	test.MainEntry(m)
-}
+const (
+	TestOperatorNamespaceEnv = "TEST_OPERATOR_NAMESPACE"
+)
+
+var (
+	operatorNamespace string
+	k8sClient         client.Client
+	projectRootDir    string
+)
