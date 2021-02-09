@@ -3,8 +3,6 @@
 # allowed to retrieve metrices from elasticsearch
 set -euo pipefail
 
-KUBECONFIG=${KUBECONFIG:-$HOME/.kube/config}
-
 repo_dir="$(dirname $0)/../.."
 source "${repo_dir}/hack/lib/init.sh"
 source "${repo_dir}/hack/testing-olm/utils"
@@ -16,11 +14,12 @@ fi
 
 os::test::junit::declare_suite_start "[Elasticsearch] Verify Metrics Access"
 
-suffix=$RANDOM
-TEST_NAMESPACE="${TEST_NAMESPACE:-e2e-test-${suffix}}"
+suffix=001
+TEST_NAMESPACE="openshift-operators-redhat"
 UNAUTHORIZED_SA="unauthorized-sa-${suffix}"
 AUTHORIZED_SA="authorized-sa-${suffix}"
 CLUSTERROLE="prometheus-k8s-${suffix}"
+es_pod="elasticsearch-2eddwtr6-cdm-40wx2lzk-1-756f4f8965-q2cjj"
 
 start_seconds=$(date +%s)
 cleanup(){
@@ -43,27 +42,17 @@ cleanup(){
     oc delete clusterrole ${CLUSTERROLE} >> $test_artifact_dir/cleanup.log 2>&1 ||:
     oc delete clusterrolebinding ${CLUSTERROLE} >> $test_artifact_dir/cleanup.log 2>&1 ||:
     oc delete clusterrolebinding view-${CLUSTERROLE} >> $test_artifact_dir/cleanup.log 2>&1 ||:
-    oc delete clusterrolebinding view-${CLUSTERROLE}-unauth >> $test_artifact_dir/cleanup.log 2>&1 ||:
   fi
   
   set -e
   exit ${return_code}
 }
-trap cleanup exit
+# trap cleanup exit
 
-if [ "${DO_SETUP:-true}" == "true" ] ; then
-  for item in "${TEST_NAMESPACE}" "openshift-operators-redhat" ; do
-    if oc get project ${item} > /dev/null 2>&1 ; then
-      echo using existing project ${item}
-    else
-      oc create namespace ${item}
-    fi
-  done
+# TEST_WATCH_NAMESPACE=${TEST_NAMESPACE} go test -v ./test/e2e-olm/... -root=$(pwd) -kubeconfig=${KUBECONFIG} -globalMan test/files/dummycrd.yaml -parallel=1 -timeout 1500s -run TestElasticsearchOperatorMetrics
 
-  export ELASTICSEARCH_OPERATOR_NAMESPACE=${TEST_NAMESPACE}
-  deploy_elasticsearch_operator
-fi
-
-CLUSTERROLE=${CLUSTERROLE} AUTHORIZED_SA=${AUTHORIZED_SA} UNAUTHORIZED_SA=${UNAUTHORIZED_SA} \
-  TEST_WATCH_NAMESPACE=${TEST_NAMESPACE} \
-  go test -v ./test/e2e-olm/... -root=$(pwd) -kubeconfig=${KUBECONFIG} -globalMan test/files/dummycrd.yaml -parallel=1 -timeout 1500s -run TestElasticsearchOperatorMetrics
+pod=$(oc -n $TEST_NAMESPACE get pod -l component=elasticsearch -o jsonpath={.items[0].metadata.name})
+os::log::info "---------------------------------------------------------------"
+os::log::info Attempt to autocreate an index without a '-write' suffix...
+os::log::info "---------------------------------------------------------------"
+os::cmd::expect_success_and_text "oc -n $TEST_NAMESPACE exec $pod -c elasticsearch -- es_util --query=foo/_doc/2 -d '{\"key\":\"value\"}' -XPUT -w %{http_code}" ".*201"
