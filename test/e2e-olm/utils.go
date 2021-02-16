@@ -50,17 +50,17 @@ func setupK8sClient(t *testing.T) {
 
 	projectRootDir = getProjectRootPath("elasticsearch-operator")
 
-	cfg, err := config.GetConfig()
+	k8sConfig, err := config.GetConfig()
 	if err != nil {
 		t.Fatalf("Error get config: %s", err)
 	}
-	if cfg == nil {
+	if k8sConfig == nil {
 		t.Fatal("config is nil")
 	}
 
 	registerSchemes(t)
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	k8sClient, err = client.New(k8sConfig, client.Options{Scheme: scheme.Scheme})
 	if err != nil {
 		t.Fatalf("Error get k8sClient: %s", err)
 	}

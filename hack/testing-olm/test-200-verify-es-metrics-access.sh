@@ -65,5 +65,6 @@ if [ "${DO_SETUP:-true}" == "true" ] ; then
 fi
 
 CLUSTERROLE=${CLUSTERROLE} AUTHORIZED_SA=${AUTHORIZED_SA} UNAUTHORIZED_SA=${UNAUTHORIZED_SA} \
+  TEST_OPERATOR_NAMESPACE=${TEST_NAMESPACE} \
   TEST_WATCH_NAMESPACE=${TEST_NAMESPACE} \
-  go test -v ./test/e2e-olm/... -root=$(pwd) -kubeconfig=${KUBECONFIG} -globalMan test/files/dummycrd.yaml -parallel=1 -timeout 1500s -run TestElasticsearchOperatorMetrics
+  go test -v ./test/e2e-olm/... -kubeconfig=${KUBECONFIG} -parallel=1 -timeout 1500s -run TestElasticsearchOperatorMetrics
