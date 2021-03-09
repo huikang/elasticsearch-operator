@@ -60,6 +60,11 @@ func SecretReconcile(requestCluster *elasticsearchv1.Elasticsearch, requestClien
 			Type:   elasticsearchv1.Recovering,
 			Status: corev1.ConditionFalse,
 		})
+		updateESNodeCondition(&elasticsearchRequest.cluster.Status, &elasticsearchv1.ClusterCondition{
+			Type:   elasticsearchv1.Restarting,
+			Status: corev1.ConditionFalse,
+		})
+
 		if err := requestClient.Status().Update(context.TODO(), elasticsearchRequest.cluster); err != nil {
 			return true, err
 		}
